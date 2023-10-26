@@ -4,18 +4,23 @@ use crate::{
     element::WgpuElement,
     tensor::WgpuTensor,
 };
-use std::marker::PhantomData;
+use std::{marker::PhantomData, sync::Arc};
+
+#[cfg(target_family = "wasm")]
+pub(crate) const WORKGROUP_DEFAULT: usize = 16;
+#[cfg(not(target_family = "wasm"))]
+pub(crate) const WORKGROUP_DEFAULT: usize = 32;
 
 /// Static wgpu kernel to create a [source template](SourceTemplate).
-pub trait StaticKernelSource: Send + 'static {
+pub trait StaticKernelSource: Send + 'static + Sync {
     /// Source template for the kernel.
     fn source() -> SourceTemplate;
 }
 
 /// Dynamic wgpu kernel to create a [source template](SourceTemplate).
-pub trait DynamicKernelSource: Send {
+pub trait DynamicKernelSource: Send + Sync {
     /// Source template for the kernel.
-    fn source(self) -> SourceTemplate;
+    fn source(&self) -> SourceTemplate;
     /// Identifier for the kernel, used for caching kernel compilation.
     fn id(&self) -> String;
 }
@@ -49,8 +54,6 @@ pub fn into_contiguous<E: WgpuElement, const D: usize>(
         return tensor;
     }
 
-    const WORKGROUP: usize = 32;
-
     let num_elems = tensor.shape.num_elements();
     let handle = tensor.client.empty(num_elems * core::mem::size_of::<E>());
     let output = WgpuTensor::new(
@@ -63,9 +66,12 @@ pub fn into_contiguous<E: WgpuElement, const D: usize>(
     let info_handle = tensor.client.create(bytemuck::cast_slice(&info));
 
     tensor.client.execute(
-        Box::new(StaticKernel::<
-            KernelSettings<ContiguousRaw, E, i32, WORKGROUP, WORKGROUP, 1>,
-        >::new(elemwise_workgroup(num_elems, WORKGROUP))),
+        Arc::new(StaticKernel::<
+            KernelSettings<ContiguousRaw, E, i32, WORKGROUP_DEFAULT, WORKGROUP_DEFAULT, 1>,
+        >::new(elemwise_workgroup(
+            num_elems,
+            WORKGROUP_DEFAULT,
+        ))),
         &[&tensor.handle, &output.handle, &info_handle],
     );
 
@@ -124,7 +130,7 @@ pub struct DynamicKernelSettings<K: StaticKernelSource, E: WgpuElement, I: WgpuE
 impl<K: StaticKernelSource, E: WgpuElement, I: WgpuElement> DynamicKernelSource
     for DynamicKernelSettings<K, E, I>
 {
-    fn source(self) -> SourceTemplate {
+    fn source(&self) -> SourceTemplate {
         K::source()
             .register("workgroup_size_x", self.workgroup_x_size.to_string())
             .register("workgroup_size_y", self.workgroup_y_size.to_string())

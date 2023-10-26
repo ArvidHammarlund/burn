@@ -1,5 +1,8 @@
 use burn_tensor::{
-    ops::{ConvOptions, ConvTransposeOptions, MaxPool2dBackward, MaxPool2dWithIndices, ModuleOps},
+    ops::{
+        ConvOptions, ConvTransposeOptions, MaxPool2dBackward, MaxPool2dWithIndices, ModuleOps,
+        UnfoldOptions,
+    },
     Shape,
 };
 use candle_core::ToUsize2;

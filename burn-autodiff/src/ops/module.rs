@@ -484,6 +484,21 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         }
     }
 
+    // TODO: Support a custom unfold4d operation by overriding the default implementation.
+    //
+    // We don't override it now because the fold operation isn't available for the backward pass.
+    // This implies that when autodiff is enabled, custom unfold operations defined by backends
+    // won't be used. Instead, the conv2d operation with custom weights matrix will be used.
+    // Therefore, the conv2d backward pass will be used for the unfold4d backward pass.
+    //
+    // fn unfold4d(
+    //     x: ADTensor<B, 4>,
+    //     kernel_size: [usize; 2],
+    //     options: UnfoldOptions,
+    // ) -> ADTensor<B, 3> {
+    //     todo!()
+    // }
+
     fn avg_pool1d(
         x: ADTensor<B, 3>,
         kernel_size: usize,

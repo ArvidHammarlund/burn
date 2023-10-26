@@ -1,10 +1,12 @@
+use std::sync::Arc;
+
 use crate::{
     compute::StaticKernel,
     element::WgpuElement,
     kernel::{
         self, elemwise_workgroup,
         pool::{build_output_and_info_pool2d, build_pool2d_info},
-        KernelSettings,
+        KernelSettings, WORKGROUP_DEFAULT,
     },
     kernel_wgsl,
     ops::numeric::empty_device,
@@ -28,16 +30,17 @@ pub(crate) fn max_pool2d<E: WgpuElement>(
     padding: [usize; 2],
     dilation: [usize; 2],
 ) -> WgpuTensor<E, 4> {
-    const WORKGROUP: usize = 32;
-
     let (info_handle, output) =
         build_output_and_info_pool2d(&x, kernel_size, stride, padding, dilation);
-    let kernel = StaticKernel::<KernelSettings<MaxPool2d, E, i32, WORKGROUP, WORKGROUP, 1>>::new(
-        elemwise_workgroup(output.shape.num_elements(), WORKGROUP),
-    );
+    let kernel = StaticKernel::<
+        KernelSettings<MaxPool2d, E, i32, WORKGROUP_DEFAULT, WORKGROUP_DEFAULT, 1>,
+    >::new(elemwise_workgroup(
+        output.shape.num_elements(),
+        WORKGROUP_DEFAULT,
+    ));
 
     x.client
-        .execute(Box::new(kernel), &[&x.handle, &output.handle, &info_handle]);
+        .execute(Arc::new(kernel), &[&x.handle, &output.handle, &info_handle]);
 
     output
 }
@@ -49,18 +52,19 @@ pub(crate) fn max_pool2d_with_indices<E: WgpuElement, I: WgpuElement>(
     padding: [usize; 2],
     dilation: [usize; 2],
 ) -> (WgpuTensor<E, 4>, WgpuTensor<I, 4>) {
-    const WORKGROUP: usize = 32;
-
     let (info_handle, output) =
         build_output_and_info_pool2d(&x, kernel_size, stride, padding, dilation);
     let indices = empty_device(x.client.clone(), x.device, output.shape.clone());
 
     let kernel = StaticKernel::<
-        KernelSettings<MaxPool2dWithIndices, E, i32, WORKGROUP, WORKGROUP, 1>,
-    >::new(elemwise_workgroup(output.shape.num_elements(), WORKGROUP));
+        KernelSettings<MaxPool2dWithIndices, E, i32, WORKGROUP_DEFAULT, WORKGROUP_DEFAULT, 1>,
+    >::new(elemwise_workgroup(
+        output.shape.num_elements(),
+        WORKGROUP_DEFAULT,
+    ));
 
     x.client.execute(
-        Box::new(kernel),
+        Arc::new(kernel),
         &[&x.handle, &output.handle, &indices.handle, &info_handle],
     );
 
@@ -76,8 +80,6 @@ pub(crate) fn max_pool2d_with_indices_backward<E: WgpuElement, I: WgpuElement>(
     padding: [usize; 2],
     dilation: [usize; 2],
 ) -> WgpuTensor<E, 4> {
-    const WORKGROUP: usize = 32;
-
     let grad = kernel::into_contiguous(grad);
     let indices = kernel::into_contiguous(indices);
 
@@ -88,11 +90,14 @@ pub(crate) fn max_pool2d_with_indices_backward<E: WgpuElement, I: WgpuElement>(
     let info_handle = build_pool2d_info(&x, &grad, kernel_size, stride, padding, dilation);
 
     let kernel = StaticKernel::<
-        KernelSettings<MaxPool2dWithIndicesBackward, E, I, WORKGROUP, WORKGROUP, 1>,
-    >::new(elemwise_workgroup(output.shape.num_elements(), WORKGROUP));
+        KernelSettings<MaxPool2dWithIndicesBackward, E, I, WORKGROUP_DEFAULT, WORKGROUP_DEFAULT, 1>,
+    >::new(elemwise_workgroup(
+        output.shape.num_elements(),
+        WORKGROUP_DEFAULT,
+    ));
 
     x.client.execute(
-        Box::new(kernel),
+        Arc::new(kernel),
         &[&indices.handle, &grad.handle, &output.handle, &info_handle],
     );
     output

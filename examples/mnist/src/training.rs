@@ -5,6 +5,9 @@ use burn::module::Module;
 use burn::optim::decay::WeightDecayConfig;
 use burn::optim::AdamConfig;
 use burn::record::{CompactRecorder, NoStdTrainingRecorder};
+use burn::train::metric::store::{Aggregate, Direction, Split};
+use burn::train::metric::{CpuMemory, CpuTemperature, CpuUse};
+use burn::train::{MetricEarlyStoppingStrategy, StoppingCondition};
 use burn::{
     config::Config,
     data::{dataloader::DataLoaderBuilder, dataset::source::huggingface::MNISTDataset},
@@ -57,11 +60,23 @@ pub fn run<B: ADBackend>(device: B::Device) {
 
     // Model
     let learner = LearnerBuilder::new(ARTIFACT_DIR)
-        .metric_train_plot(AccuracyMetric::new())
-        .metric_valid_plot(AccuracyMetric::new())
-        .metric_train_plot(LossMetric::new())
-        .metric_valid_plot(LossMetric::new())
-        .with_file_checkpointer(1, CompactRecorder::new())
+        .metric_train_numeric(AccuracyMetric::new())
+        .metric_valid_numeric(AccuracyMetric::new())
+        .metric_train_numeric(CpuUse::new())
+        .metric_valid_numeric(CpuUse::new())
+        .metric_train_numeric(CpuMemory::new())
+        .metric_valid_numeric(CpuMemory::new())
+        .metric_train_numeric(CpuTemperature::new())
+        .metric_valid_numeric(CpuTemperature::new())
+        .metric_train_numeric(LossMetric::new())
+        .metric_valid_numeric(LossMetric::new())
+        .with_file_checkpointer(CompactRecorder::new())
+        .early_stopping(MetricEarlyStoppingStrategy::new::<LossMetric<B>>(
+            Aggregate::Mean,
+            Direction::Lowest,
+            Split::Valid,
+            StoppingCondition::NoImprovementSince { n_epochs: 1 },
+        ))
         .devices(vec![device])
         .num_epochs(config.num_epochs)
         .build(Model::new(), config.optimizer.init(), 1e-4);

@@ -88,11 +88,11 @@ pub fn train<B: ADBackend>(artifact_dir: &str, config: TrainingConfig, device: B
         .build(MNISTDataset::test());
 
     let learner = LearnerBuilder::new(artifact_dir)
-        .metric_train_plot(AccuracyMetric::new())
-        .metric_valid_plot(AccuracyMetric::new())
-        .metric_train_plot(LossMetric::new())
-        .metric_valid_plot(LossMetric::new())
-        .with_file_checkpointer(1, CompactRecorder::new())
+        .metric_train_numeric(AccuracyMetric::new())
+        .metric_valid_numeric(AccuracyMetric::new())
+        .metric_train_numeric(LossMetric::new())
+        .metric_valid_numeric(LossMetric::new())
+        .with_file_checkpointer(CompactRecorder::new())
         .devices(vec![device])
         .num_epochs(config.num_epochs)
         .build(

@@ -4,6 +4,8 @@ use crate::{
     element::{FloatElement, IntElement},
     kernel, unary, unary_inplace, GraphicsApi, WgpuBackend,
 };
+
+use burn_tensor::Reader;
 use burn_tensor::{ops::IntTensorOps, Data, Shape};
 use std::ops::Range;
 
@@ -21,7 +23,7 @@ where
         tensor.shape.clone()
     }
 
-    fn int_into_data<const D: usize>(tensor: IntTensor<Self, D>) -> Data<I, D> {
+    fn int_into_data<const D: usize>(tensor: IntTensor<Self, D>) -> Reader<Data<I, D>> {
         super::into_data(tensor)
     }
 
@@ -273,28 +275,27 @@ where
         kernel::argmin(tensor, dim)
     }
 
-    // TODO implement clamp kernels (see https://github.com/burn-rs/burn/issues/549)
-    // fn int_clamp_min<const D: usize>(
-    //     tensor: IntTensor<Self, D>,
-    //     min: IntElem<Self>,
-    // ) -> IntTensor<Self, D> {
-    //     kernel::clamp_min(tensor, min)
-    // }
+    fn int_clamp_min<const D: usize>(
+        tensor: IntTensor<Self, D>,
+        min: IntElem<Self>,
+    ) -> IntTensor<Self, D> {
+        kernel::clamp_min(tensor, min)
+    }
 
-    // fn int_clamp_max<const D: usize>(
-    //     tensor: IntTensor<Self, D>,
-    //     max: IntElem<Self>,
-    // ) -> IntTensor<Self, D> {
-    //     kernel::clamp_max(tensor, max)
-    // }
+    fn int_clamp_max<const D: usize>(
+        tensor: IntTensor<Self, D>,
+        max: IntElem<Self>,
+    ) -> IntTensor<Self, D> {
+        kernel::clamp_max(tensor, max)
+    }
 
-    // fn int_clamp<const D: usize>(
-    //     tensor: IntTensor<Self, D>,
-    //     min: IntElem<Self>,
-    //     max: IntElem<Self>,
-    // ) -> IntTensor<Self, D> {
-    //     kernel::clamp(tensor, min, max)
-    // }
+    fn int_clamp<const D: usize>(
+        tensor: IntTensor<Self, D>,
+        min: IntElem<Self>,
+        max: IntElem<Self>,
+    ) -> IntTensor<Self, D> {
+        kernel::clamp(tensor, min, max)
+    }
 
     fn int_abs<const D: usize>(tensor: IntTensor<Self, D>) -> IntTensor<Self, D> {
         unary!(IntAbs, func "abs");

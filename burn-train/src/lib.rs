@@ -8,16 +8,19 @@ extern crate derive_new;
 /// The checkpoint module.
 pub mod checkpoint;
 
+pub(crate) mod components;
+
+/// Renderer modules to display metrics and training information.
+pub mod renderer;
+
 /// The logger module.
 pub mod logger;
 
 /// The metric module.
 pub mod metric;
 
-mod callback;
 mod learner;
 
-pub use callback::*;
 pub use learner::*;
 
 #[cfg(test)]

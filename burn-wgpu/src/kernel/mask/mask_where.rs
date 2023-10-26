@@ -1,7 +1,9 @@
+use std::sync::Arc;
+
 use crate::{
     compute::StaticKernel,
     element::WgpuElement,
-    kernel::{build_info, elemwise_workgroup, KernelSettings},
+    kernel::{build_info, elemwise_workgroup, KernelSettings, WORKGROUP_DEFAULT},
     kernel_wgsl,
     ops::numeric::empty_device,
     tensor::WgpuTensor,
@@ -15,8 +17,6 @@ pub fn mask_where<E: WgpuElement, const D: usize>(
     mask: WgpuTensor<u32, D>,
     value: WgpuTensor<E, D>,
 ) -> WgpuTensor<E, D> {
-    const WORKGROUP: usize = 32;
-
     let num_elems = input.shape.num_elements();
     let output = empty_device(
         input.client.clone(),
@@ -24,15 +24,15 @@ pub fn mask_where<E: WgpuElement, const D: usize>(
         input.shape.clone(),
     );
 
-    let kernel = StaticKernel::<KernelSettings<MaskWhere, E, i32, WORKGROUP, WORKGROUP, 1>>::new(
-        elemwise_workgroup(num_elems, WORKGROUP),
-    );
+    let kernel = StaticKernel::<
+        KernelSettings<MaskWhere, E, i32, WORKGROUP_DEFAULT, WORKGROUP_DEFAULT, 1>,
+    >::new(elemwise_workgroup(num_elems, WORKGROUP_DEFAULT));
     let mask = WgpuTensor::new(mask.client, mask.device, mask.shape, mask.handle);
     let info = build_info(&[&input, &value, &mask, &output]);
     let info_handle = input.client.create(bytemuck::cast_slice(&info));
 
     input.client.execute(
-        Box::new(kernel),
+        Arc::new(kernel),
         &[
             &input.handle,
             &value.handle,
@@ -51,12 +51,12 @@ pub fn mask_where_inplace<E: WgpuElement, const D: usize>(
     value: WgpuTensor<E, D>,
     reverse: bool,
 ) -> WgpuTensor<E, D> {
-    const WORKGROUP: usize = 32;
-
-    let kernel =
-        StaticKernel::<KernelSettings<MaskWhereInplace, E, i32, WORKGROUP, WORKGROUP, 1>>::new(
-            elemwise_workgroup(input.shape.num_elements(), WORKGROUP),
-        );
+    let kernel = StaticKernel::<
+        KernelSettings<MaskWhereInplace, E, i32, WORKGROUP_DEFAULT, WORKGROUP_DEFAULT, 1>,
+    >::new(elemwise_workgroup(
+        input.shape.num_elements(),
+        WORKGROUP_DEFAULT,
+    ));
     let mask = WgpuTensor::new(mask.client, mask.device, mask.shape, mask.handle);
     let mut info = build_info(&[&input, &value, &mask]);
     info.push(match reverse {
@@ -66,7 +66,7 @@ pub fn mask_where_inplace<E: WgpuElement, const D: usize>(
     let info_handle = input.client.create(bytemuck::cast_slice(&info));
 
     input.client.execute(
-        Box::new(kernel),
+        Arc::new(kernel),
         &[&input.handle, &value.handle, &mask.handle, &info_handle],
     );
 

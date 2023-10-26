@@ -1,8 +1,11 @@
 use crate::{
     channel::ComputeChannel,
     server::{ComputeServer, Handle},
+    tune::AutotuneOperation,
 };
+use alloc::boxed::Box;
 use alloc::vec::Vec;
+use burn_common::reader::Reader;
 use core::marker::PhantomData;
 
 /// The ComputeClient is the entry point to require tasks from the ComputeServer.
@@ -40,7 +43,7 @@ where
     }
 
     /// Given a handle, returns owned resource as bytes.
-    pub fn read(&self, handle: &Handle<Server>) -> Vec<u8> {
+    pub fn read(&self, handle: &Handle<Server>) -> Reader<Vec<u8>> {
         self.channel.read(handle)
     }
 
@@ -62,5 +65,14 @@ where
     /// Wait for the completion of every task in the server.
     pub fn sync(&self) {
         self.channel.sync()
+    }
+
+    /// Executes the fastest kernel in the autotune operation, using (cached) runtime benchmarks
+    pub fn execute_autotune(
+        &self,
+        autotune_kernel: Box<dyn AutotuneOperation<Server>>,
+        handles: &[&Handle<Server>],
+    ) {
+        self.channel.execute_autotune(autotune_kernel, handles);
     }
 }

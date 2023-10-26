@@ -23,8 +23,6 @@ pub struct GruConfig {
     /// Gru initializer
     #[config(default = "Initializer::XavierNormal{gain:1.0}")]
     pub initializer: Initializer,
-    /// The batch size.
-    pub batch_size: usize,
 }
 
 /// The Gru module. This implementation is for a unidirectional, stateless, Gru.
@@ -33,7 +31,6 @@ pub struct Gru<B: Backend> {
     update_gate: GateController<B>,
     reset_gate: GateController<B>,
     new_gate: GateController<B>,
-    batch_size: usize,
     d_hidden: usize,
 }
 
@@ -65,7 +62,6 @@ impl GruConfig {
             update_gate,
             reset_gate,
             new_gate,
-            batch_size: self.batch_size,
             d_hidden: self.d_hidden,
         }
     }
@@ -89,7 +85,6 @@ impl GruConfig {
                 record.reset_gate,
             ),
             new_gate: gate_controller::GateController::new_with(&linear_config, record.new_gate),
-            batch_size: self.batch_size,
             d_hidden: self.d_hidden,
         }
     }
@@ -111,11 +106,11 @@ impl<B: Backend> Gru<B> {
         batched_input: Tensor<B, 3>,
         state: Option<Tensor<B, 3>>,
     ) -> Tensor<B, 3> {
-        let seq_length = batched_input.shape().dims[1];
+        let [batch_size, seq_length, _] = batched_input.shape().dims;
 
         let mut hidden_state = match state {
             Some(state) => state,
-            None => Tensor::zeros([self.batch_size, seq_length, self.d_hidden]),
+            None => Tensor::zeros([batch_size, seq_length, self.d_hidden]),
         };
 
         for (t, (input_t, hidden_t)) in batched_input
@@ -145,9 +140,12 @@ impl<B: Backend> Gru<B> {
                 .mul(update_values.clone().sub_scalar(1).mul_scalar(-1)) // (1 - z(t)) = -(z(t) - 1)
                 + update_values.clone().mul(hidden_t);
 
+            let current_shape = state_vector.shape().dims;
+            let unsqueezed_shape = [current_shape[0], 1, current_shape[1]];
+            let reshaped_state_vector = state_vector.reshape(unsqueezed_shape);
             hidden_state = hidden_state.slice_assign(
-                [0..self.batch_size, t..(t + 1), 0..self.d_hidden],
-                state_vector.clone().unsqueeze(),
+                [0..batch_size, t..(t + 1), 0..self.d_hidden],
+                reshaped_state_vector,
             );
         }
 
@@ -198,7 +196,7 @@ impl<B: Backend> Gru<B> {
 mod tests {
     use super::*;
     use crate::{module::Param, nn::LinearRecord, TestBackend};
-    use burn_tensor::Data;
+    use burn_tensor::{Data, Distribution};
 
     /// Test forward pass with simple input vector.
     ///
@@ -210,7 +208,7 @@ mod tests {
     #[test]
     fn tests_forward_single_input_single_feature() {
         TestBackend::seed(0);
-        let config = GruConfig::new(1, 1, false, 1);
+        let config = GruConfig::new(1, 1, false);
         let mut gru = config.init::<TestBackend>();
 
         fn create_gate_controller(
@@ -267,5 +265,15 @@ mod tests {
         let output = state.select(0, Tensor::arange(0..1)).squeeze(0);
 
         output.to_data().assert_approx_eq(&Data::from([[0.034]]), 3);
+    }
+
+    #[test]
+    fn test_batched_forward_pass() {
+        let gru = GruConfig::new(64, 1024, true).init::<TestBackend>();
+        let batched_input = Tensor::<TestBackend, 3>::random([8, 10, 64], Distribution::Default);
+
+        let hidden_state = gru.forward(batched_input, None);
+
+        assert_eq!(hidden_state.shape().dims, [8, 10, 1024]);
     }
 }

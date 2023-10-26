@@ -1,7 +1,11 @@
+use std::sync::Arc;
+
 use crate::{
     compute::StaticKernel,
     element::WgpuElement,
-    kernel::{build_info, elemwise_workgroup, KernelSettings, StaticKernelSource},
+    kernel::{
+        build_info, elemwise_workgroup, KernelSettings, StaticKernelSource, WORKGROUP_DEFAULT,
+    },
     kernel_wgsl,
     ops::numeric::empty_device,
     tensor::WgpuTensor,
@@ -66,8 +70,6 @@ pub fn comparison<K: StaticKernelSource, E: WgpuElement, const D: usize>(
     rhs: WgpuTensor<E, D>,
 ) -> WgpuTensor<u32, D> {
     lhs.assert_is_on_same_device(&rhs);
-    const WORKGROUP: usize = 32;
-
     let mut shape_out = [0; D];
     lhs.shape
         .dims
@@ -83,14 +85,15 @@ pub fn comparison<K: StaticKernelSource, E: WgpuElement, const D: usize>(
 
     let output = empty_device(lhs.client.clone(), lhs.device.clone(), shape_out);
 
-    let kernel = StaticKernel::<KernelSettings<K, E, i32, WORKGROUP, WORKGROUP, 1>>::new(
-        elemwise_workgroup(num_elems, WORKGROUP),
-    );
+    let kernel =
+        StaticKernel::<KernelSettings<K, E, i32, WORKGROUP_DEFAULT, WORKGROUP_DEFAULT, 1>>::new(
+            elemwise_workgroup(num_elems, WORKGROUP_DEFAULT),
+        );
     let info = build_info(&[&lhs, &rhs, &output]);
     let info_handle = lhs.client.create(bytemuck::cast_slice(&info));
 
     lhs.client.execute(
-        Box::new(kernel),
+        Arc::new(kernel),
         &[&lhs.handle, &rhs.handle, &output.handle, &info_handle],
     );
 
@@ -101,18 +104,17 @@ pub fn comparison_inplace<K: StaticKernelSource, E: WgpuElement, const D: usize>
     lhs: WgpuTensor<E, D>,
     rhs: WgpuTensor<E, D>,
 ) -> WgpuTensor<u32, D> {
-    const WORKGROUP: usize = 32;
-
     lhs.assert_is_on_same_device(&rhs);
 
-    let kernel = StaticKernel::<KernelSettings<K, E, i32, WORKGROUP, WORKGROUP, 1>>::new(
-        elemwise_workgroup(lhs.shape.num_elements(), WORKGROUP),
-    );
+    let kernel =
+        StaticKernel::<KernelSettings<K, E, i32, WORKGROUP_DEFAULT, WORKGROUP_DEFAULT, 1>>::new(
+            elemwise_workgroup(lhs.shape.num_elements(), WORKGROUP_DEFAULT),
+        );
     let info = build_info(&[&lhs, &rhs]);
     let info_handle = lhs.client.create(bytemuck::cast_slice(&info));
 
     lhs.client
-        .execute(Box::new(kernel), &[&lhs.handle, &rhs.handle, &info_handle]);
+        .execute(Arc::new(kernel), &[&lhs.handle, &rhs.handle, &info_handle]);
 
     WgpuTensor::new(lhs.client, lhs.device, lhs.shape, lhs.handle)
 }

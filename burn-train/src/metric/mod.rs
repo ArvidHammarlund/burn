@@ -1,7 +1,4 @@
-/// Dashboard module for training progress.
-pub mod dashboard;
-
-/// State module for dashboard metrics.
+/// State module.
 pub mod state;
 
 mod acc;
@@ -12,8 +9,6 @@ mod cpu_temp;
 mod cpu_use;
 #[cfg(feature = "metrics")]
 mod cuda;
-#[cfg(feature = "metrics")]
-mod gpu_temp;
 mod learning_rate;
 mod loss;
 #[cfg(feature = "metrics")]
@@ -27,9 +22,11 @@ pub use cpu_temp::*;
 pub use cpu_use::*;
 #[cfg(feature = "metrics")]
 pub use cuda::*;
-#[cfg(feature = "metrics")]
-pub use gpu_temp::*;
 pub use learning_rate::*;
 pub use loss::*;
 #[cfg(feature = "metrics")]
 pub use memory_use::*;
+
+pub(crate) mod processor;
+/// Module responsible to save and exposes data collected during training.
+pub mod store;

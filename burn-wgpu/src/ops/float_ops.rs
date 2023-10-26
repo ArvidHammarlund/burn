@@ -1,16 +1,17 @@
 use super::{numeric, BoolTensor, Device, FloatElem, FloatTensor, FullPrecisionBackend, IntTensor};
+use crate::kernel::matmul::vec4_primitive::matmul_tiling_2d_vec4_primitive_default;
 use crate::kernel::prng::{random_bernoulli, random_normal, random_uniform};
 use crate::kernel::{
     self, unary_default, unary_inplace_default, unary_scalar_default, unary_scalar_inplace_default,
 };
 
-use crate::unary_scalar_inplace;
 use crate::{
     element::{FloatElement, IntElement},
     unary, unary_inplace, unary_scalar, GraphicsApi, WgpuBackend,
 };
-use burn_tensor::ElementConversion;
+use crate::{unary_scalar_inplace, WgpuDevice};
 use burn_tensor::{ops::TensorOps, Data, Distribution, Shape};
+use burn_tensor::{ElementConversion, Reader};
 
 use std::ops::Range;
 
@@ -48,11 +49,7 @@ where
         tensor.shape.clone()
     }
 
-    fn to_data<const D: usize>(tensor: &FloatTensor<Self, D>) -> Data<FloatElem<Self>, D> {
-        super::into_data(tensor.clone())
-    }
-
-    fn into_data<const D: usize>(tensor: FloatTensor<Self, D>) -> Data<FloatElem<Self>, D> {
+    fn into_data<const D: usize>(tensor: FloatTensor<Self, D>) -> Reader<Data<FloatElem<Self>, D>> {
         super::into_data(tensor)
     }
 
@@ -87,6 +84,14 @@ where
 
     fn zeros<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> FloatTensor<Self, D> {
         numeric::zeros::<G, F, D>(shape, device)
+    }
+
+    fn full<const D: usize>(
+        shape: Shape<D>,
+        fill_value: FloatElem<Self>,
+        device: &WgpuDevice,
+    ) -> FloatTensor<Self, D> {
+        numeric::full::<G, F, D>(shape, device, fill_value)
     }
 
     fn ones<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> FloatTensor<Self, D> {
@@ -139,7 +144,7 @@ where
         lhs: FloatTensor<Self, D>,
         rhs: FloatTensor<Self, D>,
     ) -> FloatTensor<Self, D> {
-        kernel::matmul::contiguous::matmul_tiling_2d_default(lhs, rhs)
+        matmul_tiling_2d_vec4_primitive_default(lhs, rhs)
     }
 
     fn swap_dims<const D: usize>(
@@ -450,26 +455,25 @@ where
         kernel::cast(tensor)
     }
 
-    // TODO implement clamp kernels (see https://github.com/burn-rs/burn/issues/549)
-    // fn clamp_min<const D: usize>(
-    //     tensor: FloatTensor<Self, D>,
-    //     min: FloatElem<Self>,
-    // ) -> FloatTensor<Self, D> {
-    //     kernel::clamp_min(tensor, min)
-    // }
+    fn clamp_min<const D: usize>(
+        tensor: FloatTensor<Self, D>,
+        min: FloatElem<Self>,
+    ) -> FloatTensor<Self, D> {
+        kernel::clamp_min(tensor, min)
+    }
 
-    // fn clamp_max<const D: usize>(
-    //     tensor: FloatTensor<Self, D>,
-    //     max: FloatElem<Self>,
-    // ) -> FloatTensor<Self, D> {
-    //     kernel::clamp_max(tensor, max)
-    // }
+    fn clamp_max<const D: usize>(
+        tensor: FloatTensor<Self, D>,
+        max: FloatElem<Self>,
+    ) -> FloatTensor<Self, D> {
+        kernel::clamp_max(tensor, max)
+    }
 
-    // fn clamp<const D: usize>(
-    //     tensor: FloatTensor<Self, D>,
-    //     min: FloatElem<Self>,
-    //     max: FloatElem<Self>,
-    // ) -> FloatTensor<Self, D> {
-    //     kernel::clamp(tensor, min, max)
-    // }
+    fn clamp<const D: usize>(
+        tensor: FloatTensor<Self, D>,
+        min: FloatElem<Self>,
+        max: FloatElem<Self>,
+    ) -> FloatTensor<Self, D> {
+        kernel::clamp(tensor, min, max)
+    }
 }
